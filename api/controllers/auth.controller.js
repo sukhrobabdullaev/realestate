@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 
 // Utility function for input validation
@@ -14,8 +15,8 @@ export const register = async (req, res) => {
   try {
     validateInput(username, password, email);
 
-     // Check if the user already exists
-     const existingUser = await prisma.user.findUnique({
+    // Check if the user already exists
+    const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
@@ -39,15 +40,15 @@ export const register = async (req, res) => {
       .status(201)
       .json({ message: "User created successfully", userData: newUser });
   } catch (error) {
-    res.status(500).json({ message: error.message || "Failed to create user." });
+    res
+      .status(500)
+      .json({ message: error.message || "Failed to create user." });
   }
 };
-export const login = async(req, res) => {
+export const login = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    validateInput(username, password);
-
     // Find the user by username
     const user = await prisma.user.findUnique({
       where: { username },
@@ -64,13 +65,26 @@ export const login = async(req, res) => {
       return res.status(401).json({ message: "Invalid username or password." });
     }
 
-    // Here you can implement session creation or JWT token generation
-    
-    res.status(200).json({ message: "Login successful", userData: user });
+    // GENERATE COOKIE TOKEN AND SENT TO THE USER
+    const age = 1000 * 60 * 60 * 24 * 7;
+
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET_KEY, {
+      expiresIn: age,
+    });
+    console.log(token);
+
+    res
+      .cookie("token", token, {
+        httpOnly: true,
+        // secure: true,
+        maxAge: age,
+      })
+      .status(200)
+      .json({ message: "Login successful" });
   } catch (error) {
     res.status(500).json({ message: error.message || "Failed to log in." });
   }
 };
 export const logout = (req, res) => {
-  // db operations
+  res.clearCookie('token').status(200).json({message: "logout successful"})
 };
