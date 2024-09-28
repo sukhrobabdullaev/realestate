@@ -9,7 +9,7 @@ function ProfileUpdatePage() {
   const { currentUser, updateUser } = useContext(AuthContext);
   const [error, setError] = useState("");
   const [avatar, setAvatar] = useState([]);
-  
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -17,13 +17,13 @@ function ProfileUpdatePage() {
     const formData = new FormData(e.target);
 
     const { username, email, password } = Object.fromEntries(formData);
-    
+
     try {
-      const res = await apiRequest.put(`/user/${currentUser.id}`, {
+      const res = await apiRequest.put(`/users/${currentUser.id}`, {
         username,
         email,
         password,
-        avatar,
+        avatar:avatar[0]
       });
       updateUser(res.data);
       navigate("/profile");

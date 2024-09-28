@@ -1,122 +1,122 @@
 import prisma from "../lib/prisma.js";
+import jwt from "jsonwebtoken";
 
-// Helper function to find a post by ID
-const findPostById = async (id) => {
-  return await prisma.post.findUnique({
-    where: { id },
-  });
-};
+export const getPosts = async (req, res) => {
+  const query = req.query;
 
-// Get all posts
-const getPosts = async (req, res) => {
   try {
-    const posts = await prisma.post.findMany();
+    const posts = await prisma.post.findMany({
+      where: {
+        city: query.city || undefined,
+        type: query.type || undefined,
+        property: query.property || undefined,
+        bedroom: parseInt(query.bedroom) || undefined,
+        price: {
+          gte: parseInt(query.minPrice) || undefined,
+          lte: parseInt(query.maxPrice) || undefined,
+        },
+      },
+    });
+
+    // setTimeout(() => {
     res.status(200).json(posts);
-  } catch (error) {
-    console.error("Error fetching posts:", error);
-    res.status(500).json({ message: "Failed to get Posts" });
+    // }, 3000);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to get posts" });
   }
 };
 
-// Get a single post by ID
-const getPost = async (req, res) => {
+export const getPost = async (req, res) => {
   const id = req.params.id;
-
   try {
-    const post = await findPostById(id);
+    const post = await prisma.post.findUnique({
+      where: { id },
+      include: {
+        postDetail: true,
+        user: {
+          select: {
+            username: true,
+            avatar: true,
+          },
+        },
+      },
+    });
 
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
+    const token = req.cookies?.token;
+
+    if (token) {
+      jwt.verify(token, process.env.JWT_SECRET_KEY, async (err, payload) => {
+        if (!err) {
+          const saved = await prisma.savedPost.findUnique({
+            where: {
+              userId_postId: {
+                postId: id,
+                userId: payload.id,
+              },
+            },
+          });
+          res.status(200).json({ ...post, isSaved: saved ? true : false });
+        }
+      });
     }
-
-    res.status(200).json(post);
-  } catch (error) {
-    console.error("Error fetching post:", error);
-    res.status(500).json({ message: "Failed to get Post" });
+    res.status(200).json({ ...post, isSaved: false });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to get post" });
   }
 };
 
-// Add a new post
-const addPost = async (req, res) => {
+export const addPost = async (req, res) => {
   const body = req.body;
   const tokenUserId = req.userId;
 
   try {
     const newPost = await prisma.post.create({
       data: {
-        ...body,
+        ...body.postData,
         userId: tokenUserId,
+        postDetail: {
+          create: body.postDetail,
+        },
       },
     });
-
     res.status(200).json(newPost);
-  } catch (error) {
-    console.error("Error adding post:", error);
-    res.status(500).json({ message: "Failed to add Post" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to create post" });
   }
 };
 
-// Update an existing post
-const updatePost = async (req, res) => {
+export const updatePost = async (req, res) => {
+  try {
+    res.status(200).json();
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to update posts" });
+  }
+};
+
+export const deletePost = async (req, res) => {
   const id = req.params.id;
   const tokenUserId = req.userId;
-  const body = req.body;
 
   try {
-    const post = await findPostById(id);
-
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
-    }
-
-    // Check if the post belongs to the logged-in user
-    if (post.userId !== tokenUserId) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized to update this post" });
-    }
-
-    // Update the post
-    const updatedPost = await prisma.post.update({
+    const post = await prisma.post.findUnique({
       where: { id },
-      data: body,
     });
 
-    res.status(200).json(updatedPost);
-  } catch (error) {
-    console.error("Error updating post:", error);
-    res.status(500).json({ message: "Failed to update Post" });
-  }
-};
-
-// Delete a post
-const deletePost = async (req, res) => {
-  const id = req.params.id;
-  const tokenUserId = req.userId;
-
-  try {
-    const post = await findPostById(id);
-
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
-    }
-
-    // Check if the post belongs to the logged-in user
     if (post.userId !== tokenUserId) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized to delete this post" });
+      return res.status(403).json({ message: "Not Authorized!" });
     }
 
     await prisma.post.delete({
       where: { id },
     });
 
-    res.status(200).json({ message: "Post deleted!" });
-  } catch (error) {
-    console.error("Error deleting post:", error);
-    res.status(500).json({ message: "Failed to delete Post" });
+    res.status(200).json({ message: "Post deleted" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to delete post" });
   }
 };
-
-export { getPost, getPosts, addPost, updatePost, deletePost };
